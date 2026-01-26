@@ -19,6 +19,16 @@ const sarabun = Sarabun({
 export const metadata: Metadata = {
   title: "Hotspot Alert System - Kanchanaburi",
   description: "ระบบแจ้งเตือนจุดความร้อน จ.กาญจนบุรี",
+  manifest: "/manifest.json",
+  themeColor: "#0f172a",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "FireAlert",
+  },
+  icons: {
+    apple: "/icons/icon-512.png",
+  }
 };
 
 export default function RootLayout({
