@@ -117,6 +117,80 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
       })
       .catch(err => console.error("Error loading protected areas:", err));
 
+
+
+    // Add layers by default
+    protectedAreasLayer.addTo(map);
+
+    // Wind Data Layer
+    const windLayer = L.layerGroup();
+
+    // Custom Wind Icon
+    const createWindIcon = (degree: number, speed: number) => {
+      return L.divIcon({
+        className: 'wind-marker',
+        html: `<div style="
+          transform: rotate(${degree}deg);
+          font-size: 20px;
+          color: #3b82f6;
+          text-shadow: 0 0 2px white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        ">
+          ➤
+        </div>
+        <div style="font-size: 10px; background: rgba(255,255,255,0.8); padding: 1px 4px; border-radius: 4px; margin-top: -5px; text-align: center; border: 1px solid #3b82f6;">
+          ${speed} km/h
+        </div>`,
+        iconSize: [30, 40],
+        iconAnchor: [15, 20]
+      });
+    };
+
+    // Fetch Wind Data Function
+    const fetchWindData = async () => {
+      // Limit to first 20 to avoid spamming API
+      const targets = hotspots.slice(0, 20);
+
+      for (const h of targets) {
+        try {
+          // Open-Meteo Free API (No key needed)
+          const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${h.latitude}&longitude=${h.longitude}&current_weather=true`);
+          const data = await res.json();
+
+          if (data.current_weather) {
+            const { windspeed, winddirection } = data.current_weather;
+            const icon = createWindIcon(winddirection, windspeed);
+
+            L.marker([h.latitude, h.longitude], {
+              icon,
+              zIndexOffset: 1000 // On top
+            })
+              .bindPopup(`
+                        <div style="font-family: sans-serif;">
+                            <strong>🌪️ ข้อมูลลม</strong><br/>
+                            ความเร็ว: ${windspeed} km/h<br/>
+                            ทิศทาง: ${winddirection}°
+                        </div>
+                    `)
+              .addTo(windLayer);
+          }
+        } catch (e) {
+          console.error("Wind fetch error", e);
+        }
+      }
+    };
+
+    // Helper to start fetching when layer is added
+    map.on('overlayadd', (e) => {
+      if (e.name === '🌪️ ทิศทางลม') {
+        if (windLayer.getLayers().length === 0) {
+          fetchWindData();
+        }
+      }
+    });
+
     // Layer control
     const baseMaps = {
       "🗺️ แผนที่ถนน": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
@@ -124,15 +198,13 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
     };
 
     const overlayMaps = {
-      "🏞️ เขตป่าอนุรักษ์": protectedAreasLayer
+      "🏞️ เขตป่าอนุรักษ์": protectedAreasLayer,
+      "🌪️ ทิศทางลม": windLayer
     };
 
     L.control.layers(baseMaps, overlayMaps).addTo(map);
 
-    // Add layers by default
-    protectedAreasLayer.addTo(map);
-
-    // Add Locate Control (Custom Button)
+    // Locate Control logic... (Keep existing code)
     const LocateControl = L.Control.extend({
       options: { position: 'topleft' },
       onAdd: () => {
