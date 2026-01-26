@@ -127,35 +127,50 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
 
     // Custom Wind Icon
     const createWindIcon = (degree: number, speed: number) => {
+      // Rotate 180 because arrow points down by default, but wind comes 'from'
+      // OpenMeteo Wind Direction is "direction form which wind is blowing".
+      // We want arrow to point "to". So add 180.
+      const rotation = degree + 180;
+
       return L.divIcon({
         className: 'wind-marker',
         html: `<div style="
-          transform: rotate(${degree}deg);
-          font-size: 20px;
-          color: #3b82f6;
-          text-shadow: 0 0 2px white;
+          transform: rotate(${rotation}deg);
+          font-size: 24px;
+          color: #0ea5e9;
+          filter: drop-shadow(0 0 2px rgba(255,255,255,0.8));
           display: flex;
           align-items: center;
           justify-content: center;
+          font-weight: bold;
         ">
-          ➤
+          ⬇
         </div>
-        <div style="font-size: 10px; background: rgba(255,255,255,0.8); padding: 1px 4px; border-radius: 4px; margin-top: -5px; text-align: center; border: 1px solid #3b82f6;">
-          ${speed} km/h
+        <div style="font-size: 10px; background: rgba(255,255,255,0.9); padding: 1px 4px; border-radius: 4px; margin-top: -8px; text-align: center; border: 1px solid #0ea5e9; color: #0f172a; font-weight: bold;">
+          ${speed}
         </div>`,
-        iconSize: [30, 40],
-        iconAnchor: [15, 20]
+        iconSize: [30, 48],
+        iconAnchor: [15, 24]
       });
     };
 
     // Fetch Wind Data Function
     const fetchWindData = async () => {
+      if (!hotspots || hotspots.length === 0) {
+        console.warn("No hotspots to fetch wind data for");
+        return;
+      }
+
+      console.log("Fetching wind data for", hotspots.length, "hotspots...");
+      // Show loading state (optional: could use a toast library if added, or simple log)
+
       // Limit to first 20 to avoid spamming API
       const targets = hotspots.slice(0, 20);
+      let count = 0;
 
       for (const h of targets) {
         try {
-          // Open-Meteo Free API (No key needed)
+          // Open-Meteo Free API
           const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${h.latitude}&longitude=${h.longitude}&current_weather=true`);
           const data = await res.json();
 
@@ -165,28 +180,33 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
 
             L.marker([h.latitude, h.longitude], {
               icon,
-              zIndexOffset: 1000 // On top
+              zIndexOffset: 1000
             })
               .bindPopup(`
-                        <div style="font-family: sans-serif;">
-                            <strong>🌪️ ข้อมูลลม</strong><br/>
-                            ความเร็ว: ${windspeed} km/h<br/>
-                            ทิศทาง: ${winddirection}°
+                        <div style="font-family: sans-serif; min-width: 120px;">
+                            <div style="font-weight: bold; color: #0ea5e9; margin-bottom: 4px;">🌪️ ข้อมูลลม</div>
+                            ความเร็ว: <strong>${windspeed}</strong> km/h<br/>
+                            ทิศทาง: <strong>${winddirection}°</strong>
                         </div>
                     `)
               .addTo(windLayer);
+            count++;
           }
         } catch (e) {
-          console.error("Wind fetch error", e);
+          console.error("Wind fetch error details:", e);
         }
       }
+      console.log(`Wind data loaded for ${count} locations`);
     };
 
     // Helper to start fetching when layer is added
     map.on('overlayadd', (e) => {
       if (e.name === '🌪️ ทิศทางลม') {
+        // Always try to fetch if empty
         if (windLayer.getLayers().length === 0) {
-          fetchWindData();
+          fetchWindData().then(() => {
+            // Force map update if needed
+          });
         }
       }
     });
