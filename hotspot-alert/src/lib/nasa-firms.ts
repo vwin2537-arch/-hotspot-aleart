@@ -180,6 +180,25 @@ export async function fetchFIRMSHotspots(days: number = 1): Promise<HotspotData[
                 const district = getDistrict(raw.latitude, raw.longitude);
                 // Include hotspots in target districts OR nearby agricultural areas
                 if (district || isInKanchanaburi(raw.latitude, raw.longitude)) {
+                    // Approximate Protected Area Bounds (Simplified for Demo)
+                    // In a real app, use a proper GIS Point-in-Polygon check with GeoJSON
+                    const PROTECTED_AREAS = [
+                        { name: 'อุทยานแห่งชาติเอราวัณ', minLat: 14.16, maxLat: 14.45, minLon: 99.10, maxLon: 99.45 },
+                        { name: 'อุทยานแห่งชาติไทรโยค', minLat: 14.25, maxLat: 14.55, minLon: 98.80, maxLon: 99.10 },
+                        { name: 'เขื่อนศรีนครินทร์', minLat: 14.30, maxLat: 15.10, minLon: 98.90, maxLon: 99.20 }
+                    ];
+
+                    function getProtectedArea(lat: number, lon: number): string | undefined {
+                        for (const area of PROTECTED_AREAS) {
+                            if (lat >= area.minLat && lat <= area.maxLat &&
+                                lon >= area.minLon && lon <= area.maxLon) {
+                                return area.name;
+                            }
+                        }
+                        return undefined;
+                    }
+
+                    // ... inside fetchFIRMSHotspots loop ...
                     const hotspot: HotspotData = {
                         id: generateId(raw.latitude, raw.longitude, raw.acq_date + raw.acq_time),
                         latitude: raw.latitude,
@@ -197,7 +216,8 @@ export async function fetchFIRMSHotspots(days: number = 1): Promise<HotspotData[
                         daynight: raw.daynight,
                         province: 'กาญจนบุรี',
                         district: district || 'พื้นที่ใกล้เคียง',
-                        utmString: getUTMString(raw.latitude, raw.longitude)
+                        utmString: getUTMString(raw.latitude, raw.longitude),
+                        protectedArea: getProtectedArea(raw.latitude, raw.longitude)
                     };
 
                     allHotspots.push(hotspot);

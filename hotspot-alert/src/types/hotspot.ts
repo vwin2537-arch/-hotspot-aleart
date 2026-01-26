@@ -20,6 +20,7 @@ export interface HotspotData {
     district?: string;
     subdistrict?: string;
     utmString?: string;
+    protectedArea?: string;
 }
 
 export interface GistdaResponse {

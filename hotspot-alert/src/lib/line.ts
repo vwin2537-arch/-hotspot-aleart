@@ -57,13 +57,13 @@ function createHotspotAlertMessage(alert: HotspotAlert): object[] {
     const mainMessage = `🔥 พบจุดความร้อน (Hotspot) ใหม่!
 ━━━━━━━━━━━━━━━━━━━━
 📍 พื้นที่: จ.${CONFIG.PROVINCE}
+ เวลา: ${getThaiDateTime()}
+━━━━━━━━━━━━━━━━━━━━
+� สรุปจำนวนจุดใหม่:
 ${districtSummary}
 
-🛰️ แหล่งข้อมูล: GISTDA/VIIRS
-📅 เวลาตรวจพบ: ${getThaiDateTime()}
-🔢 จำนวนจุดใหม่: ${newCount} จุด
-
-👉 ดูรายละเอียด: https://dnp.gistda.or.th/`;
+🔢 รวมทั้งหมด: ${newCount} จุด
+� ดูแผนที่: https://hotspot-aleart-002.vercel.app/`;
 
     const messages: object[] = [
         {
@@ -72,15 +72,18 @@ ${districtSummary}
         }
     ];
 
-    // ถ้ามี hotspot น้อยกว่า 10 จุด แสดงพิกัดด้วย
+    // ถ้ามี hotspot น้อยกว่า 10 จุด แสดงพิกัดและรายละเอียดเพิ่มเติม
     if (hotspots.length <= 10 && hotspots.length > 0) {
         const coordinatesList = hotspots.map((h, i) =>
-            `${i + 1}. ${h.district || 'ไม่ทราบพื้นที่'}\n   📍 UTM: ${h.utmString || 'N/A'}\n   📌 Lat,Long: ${h.latitude.toFixed(4)}, ${h.longitude.toFixed(4)}`
+            `🔴 จุดที่ ${i + 1} (${h.district || 'ไม่ทราบพื้นที่'})
+   🏞️: ${h.protectedArea ? `ในพื้นที่ ${h.protectedArea}` : 'นอกพื้นที่อนุรักษ์'}
+   📍 UTM: ${h.utmString || 'N/A'}
+   📌 Lat/Long: ${h.latitude.toFixed(5)}, ${h.longitude.toFixed(5)}`
         ).join('\n\n');
 
         messages.push({
             type: 'text',
-            text: `📌 พิกัดจุดความร้อน:\n\n${coordinatesList}`
+            text: `� รายละเอียดพิกัด:\n\n${coordinatesList}`
         });
     }
 
@@ -94,12 +97,14 @@ function createNoHotspotMessage(): object[] {
     return [
         {
             type: 'text',
-            text: `✅ ตรวจสอบจุดความร้อนเสร็จสิ้น
+            text: `✨ สถานการณ์ปกติ (No Hotspot)
 ━━━━━━━━━━━━━━━━━━━━
 📍 พื้นที่: จ.${CONFIG.PROVINCE}
 📅 เวลา: ${getThaiDateTime()}
+━━━━━━━━━━━━━━━━━━━━
 
-🎉 ไม่พบจุดความร้อนใหม่ในพื้นที่`
+� ไม่พบจุดความร้อนใหม่ในขณะนี้
+✅ ระบบเฝ้าระวังทำงานปกติ`
         }
     ];
 }
