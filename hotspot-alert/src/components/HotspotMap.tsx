@@ -24,13 +24,18 @@ interface HotspotMapProps {
 }
 
 // Custom fire icon
-const createFireIcon = (hasProtectedArea: boolean) => {
+const createFireIcon = (hasProtectedArea: boolean, isNight: boolean) => {
+  // Night pass = Purple/Blue flame, Afternoon pass = Orange/Red flame
+  const iconContent = hasProtectedArea
+    ? (isNight ? '🌌' : '🔥') // Specific icon for protected area
+    : (isNight ? '🟣' : '🔶'); // Dot for outside
+
   return L.divIcon({
     html: `<div style="
       font-size: 24px;
       filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
       animation: pulse 1.5s ease-in-out infinite;
-    ">${hasProtectedArea ? '🔥' : '🔶'}</div>`,
+    ">${iconContent}</div>`,
     className: 'fire-marker',
     iconSize: [30, 30],
     iconAnchor: [15, 15],
@@ -42,7 +47,7 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
 
-  // Calculate center from hotspots if not provided
+  // ... (center calculation remains same) ...
   const mapCenter: [number, number] = center || (() => {
     if (hotspots.length === 0) {
       // Default to Kanchanaburi center
@@ -71,6 +76,7 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
 
     mapInstanceRef.current = map;
 
+    // ... (tile layers remain same) ...
     // Add tile layer (OpenStreetMap)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -92,7 +98,20 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
 
     // Add hotspot markers
     hotspots.forEach((hotspot, index) => {
-      const icon = createFireIcon(!!hotspot.protectedArea);
+      // Logic for Night vs Day pass
+      // acq_time is HHMM String (UTC).
+      // UTC 18:00 - 20:00 = TH 01:00 - 03:00 (Night Pass)
+      // UTC 06:00 - 08:00 = TH 13:00 - 15:00 (Afternoon Pass)
+      const hourStr = hotspot.acq_time.substring(0, 2);
+      const hour = parseInt(hourStr);
+
+      // Determine if Night Pass (approx UTC 16-23) which is TH Night
+      // Or simplify: If Thai Time < 12:00 = Night, >= 12:00 = Afternoon
+      // Convert to Thai Hour
+      const thaiHour = (hour + 7) % 24;
+      const isNight = thaiHour < 12;
+
+      const icon = createFireIcon(!!hotspot.protectedArea, isNight);
 
       const marker = L.marker([hotspot.latitude, hotspot.longitude], { icon })
         .addTo(map);
@@ -100,8 +119,8 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
       // Create popup content
       const popupContent = `
         <div style="min-width: 200px; font-family: system-ui, sans-serif;">
-          <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px; color: #ea580c;">
-            🔥 จุดความร้อน #${index + 1}
+          <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px; color: ${isNight ? '#7c3aed' : '#ea580c'};">
+            ${isNight ? '🌌 จุดความร้อน (รอบดึก)' : '🔥 จุดความร้อน (รอบบ่าย)'} #${index + 1}
           </div>
           <div style="font-size: 12px; color: #374151; line-height: 1.6;">
             ${hotspot.protectedArea ? `
@@ -114,7 +133,7 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
               <strong>UTM:</strong> ${hotspot.utmString || 'N/A'}
             </div>
             <div>📅 <strong>วันที่:</strong> ${hotspot.acq_date}</div>
-            <div>⏰ <strong>เวลา:</strong> ${hotspot.acq_time}</div>
+            <div>⏰ <strong>เวลา:</strong> ${hotspot.acq_time} (UTC)</div>
             <div>🎯 <strong>ความมั่นใจ:</strong> ${hotspot.confidence}</div>
             <div style="font-family: monospace; font-size: 11px; color: #6b7280; margin-top: 4px;">
               ${hotspot.latitude.toFixed(5)}, ${hotspot.longitude.toFixed(5)}
@@ -157,11 +176,19 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
       {/* Legend */}
       <div className="absolute bottom-4 left-4 bg-slate-900/90 backdrop-blur-sm rounded-lg p-3 text-sm border border-slate-700/50 z-[1000]">
         <div className="font-medium text-white mb-2">สัญลักษณ์</div>
-        <div className="flex items-center gap-2 text-slate-300">
-          <span>🔥</span> <span>ในพื้นที่อนุรักษ์</span>
-        </div>
-        <div className="flex items-center gap-2 text-slate-300">
-          <span>🔶</span> <span>นอกพื้นที่อนุรักษ์</span>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+          <div className="flex items-center gap-2 text-slate-300">
+            <span>🔥</span> <span>บ่าย (ป่าอนุรักษ์)</span>
+          </div>
+          <div className="flex items-center gap-2 text-slate-300">
+            <span>🔶</span> <span>บ่าย (นอกพื้นที่)</span>
+          </div>
+          <div className="flex items-center gap-2 text-slate-300">
+            <span>🌌</span> <span>ดึก (ป่าอนุรักษ์)</span>
+          </div>
+          <div className="flex items-center gap-2 text-slate-300">
+            <span>🟣</span> <span>ดึก (นอกพื้นที่)</span>
+          </div>
         </div>
       </div>
 

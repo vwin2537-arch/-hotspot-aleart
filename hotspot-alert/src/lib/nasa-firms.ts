@@ -149,6 +149,34 @@ export async function fetchFIRMSHotspots(days: number = 1): Promise<HotspotData[
             for (const raw of rawHotspots) {
                 if (!isInKanchanaburi(raw.latitude, raw.longitude)) continue;
 
+                // [NEW] Filter by Thai Date (Reset at Midnight)
+                // Parse UTC Date/Time from FIRMS
+                // acq_date: YYYY-MM-DD, acq_time: HHMM
+                const year = parseInt(raw.acq_date.substring(0, 4));
+                const month = parseInt(raw.acq_date.substring(5, 7)) - 1; // JS Month is 0-indexed
+                const day = parseInt(raw.acq_date.substring(8, 10));
+                const hour = parseInt(raw.acq_time.substring(0, 2));
+                const minute = parseInt(raw.acq_time.substring(2, 4));
+
+                // Create UTC Date object
+                const hotspotDateUTC = new Date(Date.UTC(year, month, day, hour, minute));
+
+                // Convert to Thai Time (UTC+7)
+                const thaiTimeOffset = 7 * 60 * 60 * 1000;
+                const hotspotDateThai = new Date(hotspotDateUTC.getTime() + thaiTimeOffset);
+
+                // Get Current Thai Date
+                const now = new Date();
+                const currentThaiDate = new Date(now.getTime() + thaiTimeOffset);
+
+                // Compare Dates (Ignore time)
+                const isSameDay = hotspotDateThai.getDate() === currentThaiDate.getDate() &&
+                    hotspotDateThai.getMonth() === currentThaiDate.getMonth() &&
+                    hotspotDateThai.getFullYear() === currentThaiDate.getFullYear();
+
+                // If not today (Thai time), skip
+                if (!isSameDay) continue;
+
                 const district = getDistrict(raw.latitude, raw.longitude);
                 // Include hotspots in target districts OR nearby agricultural areas
                 if (district || isInKanchanaburi(raw.latitude, raw.longitude)) {
