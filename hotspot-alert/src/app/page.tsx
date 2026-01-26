@@ -101,7 +101,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-4">
             <div className="text-4xl">🔥</div>
             <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">
+              <h1 className="text-3xl font-bold font-display bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">
                 Hotspot Alert System
               </h1>
               <p className="text-slate-400 text-sm">
@@ -124,7 +124,7 @@ export default function Dashboard() {
               <span className="text-2xl">🛰️</span>
               <span className="font-medium">สถานะดาวเทียม</span>
             </div>
-            <div className={`text-2xl font-bold ${data?.isSatellitePassTime ? 'text-emerald-400' : 'text-slate-400'
+            <div className={`text-2xl font-bold font-display ${data?.isSatellitePassTime ? 'text-emerald-400' : 'text-slate-400'
               }`}>
               {data?.isSatellitePassTime ? 'กำลังถ่ายภาพ' : 'นอกช่วงเวลา'}
             </div>
@@ -139,7 +139,7 @@ export default function Dashboard() {
               <span className="text-2xl">🔥</span>
               <span className="font-medium">จุดความร้อนวันนี้</span>
             </div>
-            <div className="text-4xl font-bold text-orange-400">
+            <div className="text-5xl font-bold font-display text-orange-400">
               {data?.stats?.totalHotspots ?? '-'}
             </div>
             <div className="text-sm text-slate-400 mt-1">
@@ -153,7 +153,7 @@ export default function Dashboard() {
               <span className="text-2xl">⏰</span>
               <span className="font-medium">ตรวจสอบล่าสุด</span>
             </div>
-            <div className="text-lg font-bold text-blue-400">
+            <div className="text-lg font-bold font-display text-blue-400">
               {data?.timestamp ?? '-'}
             </div>
             <div className="text-sm text-slate-400 mt-1">
@@ -206,7 +206,7 @@ export default function Dashboard() {
 
         {/* Monitoring Areas */}
         <div className="mb-8">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          <h2 className="text-xl font-bold font-display mb-4 flex items-center gap-2">
             📍 พื้นที่ตรวจสอบ
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -221,7 +221,7 @@ export default function Dashboard() {
                     }`}
                 >
                   <div className="font-medium">{district}</div>
-                  <div className={`text-2xl font-bold ${count > 0 ? 'text-red-400' : 'text-slate-500'}`}>
+                  <div className={`text-2xl font-bold font-display ${count > 0 ? 'text-red-400' : 'text-slate-500'}`}>
                     {count} จุด
                   </div>
                 </div>
@@ -232,7 +232,7 @@ export default function Dashboard() {
 
         {/* Interactive Map - Always Visible */}
         <div className="mb-8">
-          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          <h2 className="text-xl font-bold font-display mb-4 flex items-center gap-2">
             🗺️ แผนที่จุดความร้อนและเขตป่าอนุรักษ์
           </h2>
           <HotspotMap hotspots={data?.hotspots || []} />
@@ -241,7 +241,7 @@ export default function Dashboard() {
         {/* Hotspot List */}
         {data?.hotspots && data.hotspots.length > 0 && (
           <div>
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <h2 className="text-xl font-bold font-display mb-4 flex items-center gap-2">
               🔥 รายการจุดความร้อน ({data.hotspots.length} จุด)
             </h2>
             <div className="bg-slate-800/50 rounded-2xl border border-slate-700/50 overflow-hidden">
