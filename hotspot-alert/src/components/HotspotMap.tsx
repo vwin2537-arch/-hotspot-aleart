@@ -46,6 +46,12 @@ const createFireIcon = (hasProtectedArea: boolean, isNight: boolean) => {
 export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  const hotspotsRef = useRef(hotspots);
+
+  // Keep ref in sync
+  useEffect(() => {
+    hotspotsRef.current = hotspots;
+  }, [hotspots]);
 
   // ... (center calculation remains same) ...
   const mapCenter: [number, number] = center || (() => {
@@ -156,16 +162,18 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
 
     // Fetch Wind Data Function
     const fetchWindData = async () => {
-      if (!hotspots || hotspots.length === 0) {
-        console.warn("No hotspots to fetch wind data for");
+      const currentHotspots = hotspotsRef.current;
+
+      if (!currentHotspots || currentHotspots.length === 0) {
+        alert("⚠️ ไม่พบจุดความร้อน (No Hotspots) ไม่สามารถดึงข้อมูลลมได้");
         return;
       }
 
-      console.log("Fetching wind data for", hotspots.length, "hotspots...");
-      // Show loading state (optional: could use a toast library if added, or simple log)
+      // Alert for debugging (User will see this)
+      // alert(`🌪️ กำลังดึงข้อมูลลมสำหรับ ${currentHotspots.length} จุด...`);
 
       // Limit to first 20 to avoid spamming API
-      const targets = hotspots.slice(0, 20);
+      const targets = currentHotspots.slice(0, 20);
       let count = 0;
 
       for (const h of targets) {
@@ -196,7 +204,10 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
           console.error("Wind fetch error details:", e);
         }
       }
-      console.log(`Wind data loaded for ${count} locations`);
+
+      if (count === 0) {
+        alert("❌ ไม่สามารถดึงข้อมูลลมได้ (API Connection Error)");
+      }
     };
 
     // Helper to start fetching when layer is added
@@ -204,9 +215,7 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
       if (e.name === '🌪️ ทิศทางลม') {
         // Always try to fetch if empty
         if (windLayer.getLayers().length === 0) {
-          fetchWindData().then(() => {
-            // Force map update if needed
-          });
+          fetchWindData();
         }
       }
     });
