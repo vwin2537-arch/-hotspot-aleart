@@ -1,0 +1,15 @@
+name: Check Hotspots
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # Run every 10 minutes
+  workflow_dispatch:        # Allow manual trigger button
+
+jobs:
+  cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Vercel Cron
+        run: |
+          curl -X GET https://hotspot-aleart-002.vercel.app/api/cron \
+          -H "Authorization: Bearer hotspot-alert-secret-2026"
