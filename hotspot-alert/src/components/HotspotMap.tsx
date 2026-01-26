@@ -132,6 +132,48 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
     // Add layers by default
     protectedAreasLayer.addTo(map);
 
+    // Add Locate Control (Custom Button)
+    const LocateControl = L.Control.extend({
+      options: { position: 'topleft' },
+      onAdd: () => {
+        const btn = L.DomUtil.create('button', 'leaflet-bar leaflet-control leaflet-control-custom');
+        btn.innerHTML = '📍';
+        btn.style.width = '32px';
+        btn.style.height = '32px';
+        btn.style.backgroundColor = 'white';
+        btn.style.cursor = 'pointer';
+        btn.style.fontSize = '18px';
+        btn.title = 'แสดงตำแหน่งปัจจุบัน';
+
+        btn.onclick = () => {
+          map.locate({ setView: true, maxZoom: 13 });
+        };
+        return btn;
+      }
+    });
+
+    map.addControl(new LocateControl());
+
+    // Handle user location found
+    map.on('locationfound', (e) => {
+      L.circleMarker(e.latlng, {
+        radius: 8,
+        fillColor: '#3b82f6',
+        color: '#ffffff',
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.8
+      }).addTo(map)
+        .bindPopup('คุณอยู่ที่นี่')
+        .openPopup();
+
+      L.circle(e.latlng, { radius: e.accuracy / 2, color: '#3b82f6', fillOpacity: 0.1, weight: 1 }).addTo(map);
+    });
+
+    map.on('locationerror', () => {
+      alert('ไม่สามารถระบุตำแหน่งของคุณได้ (กรุณาเปิด GPS)');
+    });
+
     // Add hotspot markers
     hotspots.forEach((hotspot, index) => {
       // Logic for Night vs Day pass
