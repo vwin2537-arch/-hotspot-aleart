@@ -230,15 +230,13 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Interactive Map */}
-        {data?.hotspots && data.hotspots.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-              🗺️ แผนที่จุดความร้อน
-            </h2>
-            <HotspotMap hotspots={data.hotspots} />
-          </div>
-        )}
+        {/* Interactive Map - Always Visible */}
+        <div className="mb-8">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            🗺️ แผนที่จุดความร้อนและเขตป่าอนุรักษ์
+          </h2>
+          <HotspotMap hotspots={data?.hotspots || []} />
+        </div>
 
         {/* Hotspot List */}
         {data?.hotspots && data.hotspots.length > 0 && (

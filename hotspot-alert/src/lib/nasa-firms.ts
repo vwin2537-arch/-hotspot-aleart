@@ -180,19 +180,34 @@ export async function fetchFIRMSHotspots(days: number = 1): Promise<HotspotData[
                 const district = getDistrict(raw.latitude, raw.longitude);
                 // Include hotspots in target districts OR nearby agricultural areas
                 if (district || isInKanchanaburi(raw.latitude, raw.longitude)) {
-                    // Approximate Protected Area Bounds (Simplified for Demo)
-                    // In a real app, use a proper GIS Point-in-Polygon check with GeoJSON
-                    const PROTECTED_AREAS = [
-                        { name: 'อุทยานแห่งชาติเอราวัณ', minLat: 14.16, maxLat: 14.45, minLon: 99.10, maxLon: 99.45 },
-                        { name: 'อุทยานแห่งชาติไทรโยค', minLat: 14.25, maxLat: 14.55, minLon: 98.80, maxLon: 99.10 },
-                        { name: 'เขื่อนศรีนครินทร์', minLat: 14.30, maxLat: 15.10, minLon: 98.90, maxLon: 99.20 }
-                    ];
+                    const fs = require('fs');
+                    const path = require('path');
+                    const turf = require('@turf/turf');
+
+                    // Load protected areas GeoJSON
+                    let protectedAreasGeoJSON: any = null;
+                    try {
+                        const geoJsonPath = path.join(process.cwd(), 'public', 'data', 'protected-areas.json');
+                        if (fs.existsSync(geoJsonPath)) {
+                            const fileContent = fs.readFileSync(geoJsonPath, 'utf-8');
+                            protectedAreasGeoJSON = JSON.parse(fileContent);
+                            console.log(`Loaded protected areas from ${geoJsonPath}`);
+                        } else {
+                            console.warn('Protected areas GeoJSON not found');
+                        }
+                    } catch (error) {
+                        console.error('Error loading protected areas:', error);
+                    }
 
                     function getProtectedArea(lat: number, lon: number): string | undefined {
-                        for (const area of PROTECTED_AREAS) {
-                            if (lat >= area.minLat && lat <= area.maxLat &&
-                                lon >= area.minLon && lon <= area.maxLon) {
-                                return area.name;
+                        if (!protectedAreasGeoJSON || !protectedAreasGeoJSON.features) return undefined;
+
+                        const point = turf.point([lon, lat]); // Note: Turf uses [lon, lat]
+
+                        for (const feature of protectedAreasGeoJSON.features) {
+                            if (feature.geometry && turf.booleanPointInPolygon(point, feature)) {
+                                // Return name from properties (try various common keys)
+                                return feature.properties.name || feature.properties.NAME || feature.properties.NAME_TH || 'พื้นที่อนุรักษ์';
                             }
                         }
                         return undefined;

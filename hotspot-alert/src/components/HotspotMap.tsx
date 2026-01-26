@@ -88,13 +88,49 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
       { attribution: '&copy; Esri' }
     );
 
+    // Add simplified border (Province) or Protected Areas
+    const protectedAreasLayer = L.geoJSON(null as any, {
+      style: {
+        color: '#10b981', // Emerald 500
+        weight: 2,
+        opacity: 0.8,
+        fillColor: '#10b981',
+        fillOpacity: 0.1
+      },
+      onEachFeature: (feature, layer) => {
+        if (feature.properties && feature.properties.name) {
+          layer.bindPopup(`
+            <div style="font-family: sans-serif; font-size: 14px;">
+              <strong>🏞️ ${feature.properties.name}</strong><br/>
+              <span style="color: #6b7280; font-size: 12px;">${feature.properties.type}</span>
+            </div>
+          `);
+        }
+      }
+    });
+
+    // Fetch GeoJSON Data
+    fetch('/data/protected-areas.json')
+      .then(res => res.json())
+      .then(data => {
+        protectedAreasLayer.addData(data);
+      })
+      .catch(err => console.error("Error loading protected areas:", err));
+
     // Layer control
     const baseMaps = {
       "🗺️ แผนที่ถนน": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
       "🛰️ ดาวเทียม": satellite
     };
 
-    L.control.layers(baseMaps).addTo(map);
+    const overlayMaps = {
+      "🏞️ เขตป่าอนุรักษ์": protectedAreasLayer
+    };
+
+    L.control.layers(baseMaps, overlayMaps).addTo(map);
+
+    // Add layers by default
+    protectedAreasLayer.addTo(map);
 
     // Add hotspot markers
     hotspots.forEach((hotspot, index) => {
