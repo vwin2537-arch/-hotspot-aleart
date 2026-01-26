@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import EnvironmentCard from '@/components/EnvironmentCard';
 
 // Dynamic import to prevent SSR issues with Leaflet
 const HotspotMap = dynamic(() => import('@/components/HotspotMap'), {
@@ -113,6 +114,12 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
+
+        {/* Environment & Risk Card */}
+        <div className="mb-8">
+          <EnvironmentCard />
+        </div>
+
         {/* Status Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           {/* Satellite Status */}
