@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -53,94 +53,29 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
     hotspotsRef.current = hotspots;
   }, [hotspots]);
 
-  // ... (center calculation remains same) ...
-  const mapCenter: [number, number] = center || (() => {
-    if (hotspots.length === 0) {
-      // Default to Kanchanaburi center
-      return [14.5, 99.0] as [number, number];
-    }
+  // Memoize center to prevent re-renders
+  const mapCenter: [number, number] = useMemo(() => {
+    if (center) return center;
+    if (hotspots.length === 0) return [14.5, 99.0];
     const avgLat = hotspots.reduce((sum, h) => sum + h.latitude, 0) / hotspots.length;
     const avgLng = hotspots.reduce((sum, h) => sum + h.longitude, 0) / hotspots.length;
-    return [avgLat, avgLng] as [number, number];
-  })();
+    return [avgLat, avgLng];
+  }, [center, hotspots.length]); // Only recalc if count changes (good enough approximation to avoid jitter)
 
-  useEffect(() => {
-    if (!mapRef.current) return;
+  // Refs for layers to update them without rebuilding map
+  const markersLayerRef = useRef<L.LayerGroup | null>(null);
+  const windLayerRef = useRef<L.LayerGroup | null>(null);
 
-    // Clean up existing map
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.remove();
-    }
+  // Custom Wind Icon
+  const createWindIcon = (degree: number, speed: number) => {
+    // Rotate 180 because arrow points down by default, but wind comes 'from'
+    // OpenMeteo Wind Direction is "direction form which wind is blowing".
+    // We want arrow to point "to". So add 180.
+    const rotation = degree + 180;
 
-    // Create map
-    const map = L.map(mapRef.current, {
-      center: mapCenter,
-      zoom: zoom,
-      zoomControl: true,
-      attributionControl: true
-    });
-
-    mapInstanceRef.current = map;
-
-    // ... (tile layers remain same) ...
-    // Add tile layer (OpenStreetMap)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(map);
-
-    // Add satellite layer option
-    const satellite = L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { attribution: '&copy; Esri' }
-    );
-
-    // Add simplified border (Province) or Protected Areas
-    const protectedAreasLayer = L.geoJSON(null as any, {
-      style: {
-        color: '#10b981', // Emerald 500
-        weight: 2,
-        opacity: 0.8,
-        fillColor: '#10b981',
-        fillOpacity: 0.1
-      },
-      onEachFeature: (feature, layer) => {
-        if (feature.properties && feature.properties.name) {
-          layer.bindPopup(`
-            <div style="font-family: sans-serif; font-size: 14px;">
-              <strong>🏞️ ${feature.properties.name}</strong><br/>
-              <span style="color: #6b7280; font-size: 12px;">${feature.properties.type}</span>
-            </div>
-          `);
-        }
-      }
-    });
-
-    // Fetch GeoJSON Data
-    fetch('/data/protected-areas.json')
-      .then(res => res.json())
-      .then(data => {
-        protectedAreasLayer.addData(data);
-      })
-      .catch(err => console.error("Error loading protected areas:", err));
-
-
-
-    // Add layers by default
-    protectedAreasLayer.addTo(map);
-
-    // Wind Data Layer
-    const windLayer = L.layerGroup();
-
-    // Custom Wind Icon
-    const createWindIcon = (degree: number, speed: number) => {
-      // Rotate 180 because arrow points down by default, but wind comes 'from'
-      // OpenMeteo Wind Direction is "direction form which wind is blowing".
-      // We want arrow to point "to". So add 180.
-      const rotation = degree + 180;
-
-      return L.divIcon({
-        className: 'wind-marker',
-        html: `<div style="
+    return L.divIcon({
+      className: 'wind-marker',
+      html: `<div style="
           transform: rotate(${rotation}deg);
           font-size: 24px;
           color: #0ea5e9;
@@ -155,85 +90,133 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
         <div style="font-size: 10px; background: rgba(255,255,255,0.9); padding: 1px 4px; border-radius: 4px; margin-top: -8px; text-align: center; border: 1px solid #0ea5e9; color: #0f172a; font-weight: bold;">
           ${speed}
         </div>`,
-        iconSize: [30, 48],
-        iconAnchor: [15, 24]
-      });
-    };
+      iconSize: [30, 48],
+      iconAnchor: [15, 24]
+    });
+  };
 
-    // Fetch Wind Data Function
-    const fetchWindData = async () => {
-      const currentHotspots = hotspotsRef.current;
+  // Fetch Wind Data Function (memoized to avoid re-creation)
+  const fetchWindData = useMemo(() => async () => {
+    const currentHotspots = hotspotsRef.current;
+    const map = mapInstanceRef.current;
+    const windLayer = windLayerRef.current;
 
-      if (!currentHotspots || currentHotspots.length === 0) {
-        alert("⚠️ ไม่พบจุดความร้อน (No Hotspots) ไม่สามารถดึงข้อมูลลมได้");
-        return;
-      }
+    if (!map || !windLayer) return;
 
-      // Alert for debugging (User will see this)
-      // alert(`🌪️ กำลังดึงข้อมูลลมสำหรับ ${currentHotspots.length} จุด...`);
+    if (!currentHotspots || currentHotspots.length === 0) {
+      alert("⚠️ ไม่พบจุดความร้อน (No Hotspots) ไม่สามารถดึงข้อมูลลมได้");
+      return;
+    }
 
-      // Limit to first 20 to avoid spamming API
-      const targets = currentHotspots.slice(0, 20);
-      let count = 0;
+    // Alert for debugging (User will see this)
+    // alert(`🌪️ กำลังดึงข้อมูลลมสำหรับ ${currentHotspots.length} จุด...`);
 
-      for (const h of targets) {
-        try {
-          // Open-Meteo Free API
-          const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${h.latitude}&longitude=${h.longitude}&current_weather=true`);
-          const data = await res.json();
+    // Limit to first 20 to avoid spamming API
+    const targets = currentHotspots.slice(0, 20);
+    let count = 0;
 
-          if (data.current_weather) {
-            const { windspeed, winddirection } = data.current_weather;
-            const icon = createWindIcon(winddirection, windspeed);
+    windLayer.clearLayers(); // Clear existing wind markers before adding new ones
 
-            L.marker([h.latitude, h.longitude], {
-              icon,
-              zIndexOffset: 1000
-            })
-              .bindPopup(`
+    for (const h of targets) {
+      try {
+        // Open-Meteo Free API
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${h.latitude}&longitude=${h.longitude}&current_weather=true`);
+        const data = await res.json();
+
+        if (data.current_weather) {
+          const { windspeed, winddirection } = data.current_weather;
+          const icon = createWindIcon(winddirection, windspeed);
+
+          L.marker([h.latitude, h.longitude], {
+            icon,
+            zIndexOffset: 1000
+          })
+            .bindPopup(`
                         <div style="font-family: sans-serif; min-width: 120px;">
                             <div style="font-weight: bold; color: #0ea5e9; margin-bottom: 4px;">🌪️ ข้อมูลลม</div>
                             ความเร็ว: <strong>${windspeed}</strong> km/h<br/>
                             ทิศทาง: <strong>${winddirection}°</strong>
                         </div>
                     `)
-              .addTo(windLayer);
-            count++;
-          }
-        } catch (e) {
-          console.error("Wind fetch error details:", e);
+            .addTo(windLayer);
+          count++;
         }
+      } catch (e) {
+        console.error("Wind fetch error details:", e);
       }
+    }
 
-      if (count === 0) {
-        alert("❌ ไม่สามารถดึงข้อมูลลมได้ (API Connection Error)");
-      }
-    };
+    if (count === 0) {
+      alert("❌ ไม่สามารถดึงข้อมูลลมได้ (API Connection Error)");
+    }
+  }, []); // No dependencies, as it uses refs for map, layer, and hotspots
 
-    // Helper to start fetching when layer is added
-    map.on('overlayadd', (e) => {
-      if (e.name === '🌪️ ทิศทางลม') {
-        // Always try to fetch if empty
-        if (windLayer.getLayers().length === 0) {
-          fetchWindData();
+  // 1. Initialize Map (Run Once)
+  useEffect(() => {
+    if (!mapRef.current || mapInstanceRef.current) return;
+
+    const map = L.map(mapRef.current, {
+      center: mapCenter,
+      zoom: zoom,
+      zoomControl: true,
+      attributionControl: true
+    });
+
+    mapInstanceRef.current = map;
+
+    // Base Layers
+    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    const satellite = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { attribution: '&copy; Esri' }
+    );
+
+    // Protected Areas Layer
+    const protectedAreasLayer = L.geoJSON(null as any, {
+      style: {
+        color: '#10b981',
+        weight: 2,
+        opacity: 0.8,
+        fillColor: '#10b981',
+        fillOpacity: 0.1
+      },
+      onEachFeature: (feature, layer) => {
+        if (feature.properties?.name) {
+          layer.bindPopup(`
+            <div style="font-family: sans-serif; font-size: 14px;">
+              <strong>🏞️ ${feature.properties.name}</strong><br/>
+              <span style="color: #6b7280; font-size: 12px;">${feature.properties.type}</span>
+            </div>
+          `);
         }
       }
     });
 
-    // Layer control
-    const baseMaps = {
-      "🗺️ แผนที่ถนน": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
-      "🛰️ ดาวเทียม": satellite
-    };
+    // Fetch Protected Areas
+    fetch('/data/protected-areas.json')
+      .then(res => res.json())
+      .then(data => protectedAreasLayer.addData(data))
+      .catch(err => console.error("Error loading protected areas:", err));
 
+    protectedAreasLayer.addTo(map);
+
+    // Init Layer Groups for dynamic content
+    markersLayerRef.current = L.layerGroup().addTo(map);
+    windLayerRef.current = L.layerGroup(); // Don't add yet, waiting for toggle
+
+    // Layer Control
+    const baseMaps = { "🗺️ แผนที่ถนน": osm, "🛰️ ดาวเทียม": satellite };
     const overlayMaps = {
       "🏞️ เขตป่าอนุรักษ์": protectedAreasLayer,
-      "🌪️ ทิศทางลม": windLayer
+      "🔥 จุดความร้อน": markersLayerRef.current!,
+      "🌪️ ทิศทางลม": windLayerRef.current!
     };
-
     L.control.layers(baseMaps, overlayMaps).addTo(map);
 
-    // Locate Control logic... (Keep existing code)
+    // Add Locate Control
     const LocateControl = L.Control.extend({
       options: { position: 'topleft' },
       onAdd: () => {
@@ -245,29 +228,14 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
         btn.style.cursor = 'pointer';
         btn.style.fontSize = '18px';
         btn.title = 'แสดงตำแหน่งปัจจุบัน';
-
-        btn.onclick = () => {
-          map.locate({ setView: true, maxZoom: 13 });
-        };
+        btn.onclick = () => map.locate({ setView: true, maxZoom: 13 });
         return btn;
       }
     });
-
     map.addControl(new LocateControl());
 
-    // Handle user location found
     map.on('locationfound', (e) => {
-      L.circleMarker(e.latlng, {
-        radius: 8,
-        fillColor: '#3b82f6',
-        color: '#ffffff',
-        weight: 2,
-        opacity: 1,
-        fillOpacity: 0.8
-      }).addTo(map)
-        .bindPopup('คุณอยู่ที่นี่')
-        .openPopup();
-
+      L.circleMarker(e.latlng, { radius: 8, fillColor: '#3b82f6', color: 'white', weight: 2, fillOpacity: 0.8 }).addTo(map).bindPopup('คุณอยู่ที่นี่').openPopup();
       L.circle(e.latlng, { radius: e.accuracy / 2, color: '#3b82f6', fillOpacity: 0.1, weight: 1 }).addTo(map);
     });
 
@@ -275,28 +243,38 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
       alert('ไม่สามารถระบุตำแหน่งของคุณได้ (กรุณาเปิด GPS)');
     });
 
-    // Add hotspot markers
+    // Handle Wind Layer Toggle
+    map.on('overlayadd', (e) => {
+      if (e.name === '🌪️ ทิศทางลม' && windLayerRef.current?.getLayers().length === 0) {
+        fetchWindData();
+      }
+    });
+
+    return () => {
+      map.remove();
+      mapInstanceRef.current = null;
+    };
+  }, []); // Run ONCE
+
+
+  // 2. Update Hotspot Markers (Run when hotspots change)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const layer = markersLayerRef.current;
+    if (!map || !layer) return;
+
+    layer.clearLayers();
+
     hotspots.forEach((hotspot, index) => {
-      // Logic for Night vs Day pass
-      // acq_time is HHMM String (UTC).
-      // UTC 18:00 - 20:00 = TH 01:00 - 03:00 (Night Pass)
-      // UTC 06:00 - 08:00 = TH 13:00 - 15:00 (Afternoon Pass)
       const hourStr = hotspot.acq_time.substring(0, 2);
       const hour = parseInt(hourStr);
-
-      // Determine if Night Pass (approx UTC 16-23) which is TH Night
-      // Or simplify: If Thai Time < 12:00 = Night, >= 12:00 = Afternoon
-      // Convert to Thai Hour
       const thaiHour = (hour + 7) % 24;
       const isNight = thaiHour < 12;
-
       const icon = createFireIcon(!!hotspot.protectedArea, isNight);
 
-      const marker = L.marker([hotspot.latitude, hotspot.longitude], { icon })
-        .addTo(map);
+      const marker = L.marker([hotspot.latitude, hotspot.longitude], { icon });
 
-      // Create popup content
-      const popupContent = `
+      marker.bindPopup(`
         <div style="min-width: 200px; font-family: system-ui, sans-serif;">
           <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px; color: ${isNight ? '#7c3aed' : '#ea580c'};">
             ${isNight ? '🌌 จุดความร้อน (รอบดึก)' : '🔥 จุดความร้อน (รอบบ่าย)'} #${index + 1}
@@ -317,32 +295,26 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
             <div style="font-family: monospace; font-size: 11px; color: #6b7280; margin-top: 4px;">
               ${hotspot.latitude.toFixed(5)}, ${hotspot.longitude.toFixed(5)}
             </div>
-            <a href="https://www.google.com/maps?q=${hotspot.latitude},${hotspot.longitude}" 
-               target="_blank" 
+            <a href="https://www.google.com/maps?q=${hotspot.latitude},${hotspot.longitude}"
+               target="_blank"
                style="display: inline-block; margin-top: 8px; padding: 4px 12px; background: #3b82f6; color: white; border-radius: 4px; text-decoration: none; font-size: 12px;">
               📍 เปิดใน Google Maps
             </a>
           </div>
         </div>
-      `;
+      `);
 
-      marker.bindPopup(popupContent);
+      layer.addLayer(marker);
     });
 
-    // Fit bounds to show all markers
-    if (hotspots.length > 0) {
-      const bounds = L.latLngBounds(hotspots.map(h => [h.latitude, h.longitude]));
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
-    }
+    // Optional: fitBounds logic
+    // If you want to fit bounds on every hotspot update, uncomment and adjust:
+    // if (hotspots.length > 0) {
+    //   const bounds = L.latLngBounds(hotspots.map(h => [h.latitude, h.longitude]));
+    //   map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
+    // }
+  }, [hotspots]);
 
-    // Cleanup
-    return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
-    };
-  }, [hotspots, mapCenter, zoom]);
 
   return (
     <div className="relative">
