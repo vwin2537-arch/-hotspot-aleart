@@ -110,7 +110,7 @@ export async function fetchFIRMSHotspots(days: number = 1): Promise<HotspotData[
     }
 
     // Fetch from VIIRS S-NPP (same as fireDNPX uses)
-    const sensors = ['VIIRS_SNPP_NRT', 'VIIRS_NOAA20_NRT'];
+    const sensors = ['VIIRS_SNPP_NRT', 'VIIRS_NOAA20_NRT', 'MODIS_NRT'];
     const allHotspots: HotspotData[] = [];
 
     for (const sensor of sensors) {
