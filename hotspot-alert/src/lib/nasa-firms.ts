@@ -248,7 +248,9 @@ export async function fetchFIRMSHotspots(days: number = 1): Promise<HotspotData[
  * Fetch today's hotspots
  */
 export async function fetchTodayFIRMSHotspots(): Promise<HotspotData[]> {
-    return fetchFIRMSHotspots(1);
+    // [FIX] Fetch 3 days back to capture the "Night Pass" (which is yesterday in UTC)
+    // Our robust Thai Date filtering in fetchFIRMSHotspots will filter out the excess old data.
+    return fetchFIRMSHotspots(3);
 }
 
 /**

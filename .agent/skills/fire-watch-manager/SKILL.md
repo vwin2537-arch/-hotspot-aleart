@@ -136,5 +136,17 @@ description: "คู่มือการจัดการจุดเฝ้า
   - **Moderate:** ค่าอื่นๆ ปกติ
 - **Data Fetching:** ควรดึงข้อมูล Weather และ Air Quality พร้อมกันเพื่อลด Round-trip และแสดงผลใน `EnvironmentCard` เดียว
 
+### Timezone Handling Standards (Critical)
+- **Problem:** Server (Cloud/Local) อาจมีการตั้งค่า Timezone ไม่เหมือนกัน (UTC+0 vs UTC+7). การบวกเวลาเอง (Manual Offset) เช่น `new Date(utc + 7 hours)` จะทำให้เกิดบั๊ก "Double Shift" หากรันบนเครื่องที่เป็นเวลาไทยอยู่แล้ว
+- **Solution:** ห้ามบวกเวลาเองเด็ดขาด ให้ใช้ `Intl` API หรือ `toLocaleDateString` พร้อมระบุ Timezone เป้าหมายเสมอ
+- **Code Pattern:**
+  ```typescript
+  // ✅ Correct Way:
+  const thaiDate = dateObj.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+  
+  // ❌ Incorrect Way (Do NOT use):
+  const thaiTime = new Date(dateObj.getTime() + (7 * 60 * 60 * 1000));
+  ```
+
 ---
 *Skill นี้สร้างขึ้นเพื่อยกระดับการจัดการข้อมูลสู่ระบบอัจฉริยะ (AI-Powered Insights)*
