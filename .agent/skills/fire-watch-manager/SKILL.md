@@ -105,5 +105,36 @@ description: "คู่มือการจัดการจุดเฝ้า
   - จุด Marker (Dots) ต้องใช้ `absolute -left-[XXpx]` ที่คำนวณมาอย่างดี เพื่อให้จุดอยู่กึ่งกลางเส้นพอดี (เช่น `-left-[41px]` สำหรับ `pl-8`)
   - ระยะห่างระหว่างหัวข้อใน Modal ควรใช้ `space-y-10` เพื่อความโปร่งสบาย (Premium Breathing Room)
 
+## 15. มาตรฐานระบบแจ้งเตือน Hotspot Alert System (New Next.js Project)
+มาตรฐานสำหรับการพัฒนาระบบแจ้งเตือนจุดความร้อนผ่านดาวเทียม (Satellite-based):
+
+### Tech Stack & Libraries
+- **Framework:** Next.js (App Router) + TypeScript
+- **Mapping:** Leaflet (via `react-leaflet` or vanilla API wrapper)
+  - **Critical:** ต้องใช้ `dynamic import` พร้อม `ssr: false` เสมอ เพื่อป้องกัน Hydration Error
+- **Data Sources:** 
+  - **Hotspots:** NASA FIRMS API (Key-based)
+  - **Weather/Wind/PM2.5:** Open-Meteo API (Free, No-Key)
+  - **Geography:** GeoJSON สำหรับอุทยานฯ/พื้นที่ป่าอนุรักษ์
+
+### Performance Optimization Standards (Map Tuning)
+- **Single Map Initialization:** ห้ามสร้าง `L.map` ใหม่ทุกครั้งที่ Render
+  - ใช้ `useEffect` กับ `[]` (Empty deps) เพื่อสร้าง Map Instance ครั้งเดียว
+  - ใช้ `useRef` เก็บ Instance (`mapInstanceRef`) และ Layer (`markersLayerRef`)
+- **Efficient Updates:** เมื่อข้อมูลเปลี่ยน (`hotspots`) ให้ใช้วิธี `layer.clearLayers()` และ `layer.addLayer()` แทนการ Re-render ทั้ง Component
+- **Memoization:** ใช้ `useMemo` สำหรับตัวแปรที่คำนวณหนักๆ หรือ Array/Object ที่ใช้เป็น Dependency (เช่น `mapCenter`, `center`)
+
+### Progressive Web App (PWA) Standards
+- **Manifest:** ต้องมี `public/manifest.json` ที่กำหนด `display: "standalone"` เพื่อให้ทำงานเหมือน Native App
+- **Meta Tags:** ใน `layout.tsx` ต้องมี `appleWebApp` configuration (`capable: true`, `statusBarStyle`) เพื่อรองรับ iOS เต็มรูปแบบ
+- **Icon Generation:** ต้องมีไอคอนชัดเจนขนาด 512x512 และ 192x192
+
+### Environmental Monitoring Logic
+- **Risk Calculation:** ใช้สูตรแบบง่าย (Heuristic) เพื่อแสดงผลทันที:
+  - **Ultra High Risk:** Temp > 35°C AND Humidity < 30% AND Wind > 20 km/h
+  - **High Risk:** Temp > 32°C AND Humidity < 40%
+  - **Moderate:** ค่าอื่นๆ ปกติ
+- **Data Fetching:** ควรดึงข้อมูล Weather และ Air Quality พร้อมกันเพื่อลด Round-trip และแสดงผลใน `EnvironmentCard` เดียว
+
 ---
 *Skill นี้สร้างขึ้นเพื่อยกระดับการจัดการข้อมูลสู่ระบบอัจฉริยะ (AI-Powered Insights)*

@@ -146,74 +146,65 @@ export async function fetchFIRMSHotspots(days: number = 1): Promise<HotspotData[
             console.log(`Parsed ${rawHotspots.length} hotspots from ${sensor}`);
 
             // Filter for Kanchanaburi and target districts
+            // Filter for Kanchanaburi and target districts
+            const fs = require('fs');
+            const path = require('path');
+            const turf = require('@turf/turf'); // Dynamic require is fine here to keep it simple
+
+            // Load protected areas GeoJSON (Once per sensor loop is fine, or cache it globally if needed but this is fast enough)
+            let protectedAreasGeoJSON: any = null;
+            try {
+                const geoJsonPath = path.join(process.cwd(), 'public', 'data', 'protected-areas.json');
+                if (fs.existsSync(geoJsonPath)) {
+                    const fileContent = fs.readFileSync(geoJsonPath, 'utf-8');
+                    protectedAreasGeoJSON = JSON.parse(fileContent);
+                }
+            } catch (error) {
+                console.error('Error loading protected areas:', error);
+            }
+
+            function getProtectedArea(lat: number, lon: number): string | undefined {
+                if (!protectedAreasGeoJSON || !protectedAreasGeoJSON.features) return undefined;
+                // Turf point is [lon, lat]
+                const point = turf.point([lon, lat]);
+                for (const feature of protectedAreasGeoJSON.features) {
+                    if (feature.geometry && turf.booleanPointInPolygon(point, feature)) {
+                        // Try common name properties
+                        return feature.properties.name || feature.properties.NAME || feature.properties.NAME_TH || 'พื้นที่อนุรักษ์';
+                    }
+                }
+                return undefined;
+            }
+
             for (const raw of rawHotspots) {
                 if (!isInKanchanaburi(raw.latitude, raw.longitude)) continue;
 
-                // [NEW] Filter by Thai Date (Reset at Midnight)
-                // Parse UTC Date/Time from FIRMS
-                // acq_date: YYYY-MM-DD, acq_time: HHMM
+                // [FIXED] Robust Thai Date Comparison
                 const year = parseInt(raw.acq_date.substring(0, 4));
-                const month = parseInt(raw.acq_date.substring(5, 7)) - 1; // JS Month is 0-indexed
+                const month = parseInt(raw.acq_date.substring(5, 7)) - 1;
                 const day = parseInt(raw.acq_date.substring(8, 10));
                 const hour = parseInt(raw.acq_time.substring(0, 2));
                 const minute = parseInt(raw.acq_time.substring(2, 4));
 
-                // Create UTC Date object
+                // UTC Date of the hotspot
                 const hotspotDateUTC = new Date(Date.UTC(year, month, day, hour, minute));
 
-                // Convert to Thai Time (UTC+7)
-                const thaiTimeOffset = 7 * 60 * 60 * 1000;
-                const hotspotDateThai = new Date(hotspotDateUTC.getTime() + thaiTimeOffset);
+                // Get Thai Date String (YYYY-MM-DD) for Hotspot
+                const hotspotThaiDateStr = hotspotDateUTC.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
 
-                // Get Current Thai Date
-                const now = new Date();
-                const currentThaiDate = new Date(now.getTime() + thaiTimeOffset);
-
-                // Compare Dates (Ignore time)
-                const isSameDay = hotspotDateThai.getDate() === currentThaiDate.getDate() &&
-                    hotspotDateThai.getMonth() === currentThaiDate.getMonth() &&
-                    hotspotDateThai.getFullYear() === currentThaiDate.getFullYear();
+                // Get Current Thai Date String (YYYY-MM-DD)
+                const currentThaiDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
 
                 // If not today (Thai time), skip
-                if (!isSameDay) continue;
+                // Log for debug
+                // console.log(`Hotspot: ${hotspotThaiDateStr} vs Now: ${currentThaiDateStr}`);
+                if (hotspotThaiDateStr !== currentThaiDateStr) continue;
 
                 const district = getDistrict(raw.latitude, raw.longitude);
+
                 // Include hotspots in target districts OR nearby agricultural areas
                 if (district || isInKanchanaburi(raw.latitude, raw.longitude)) {
-                    const fs = require('fs');
-                    const path = require('path');
-                    const turf = require('@turf/turf');
 
-                    // Load protected areas GeoJSON
-                    let protectedAreasGeoJSON: any = null;
-                    try {
-                        const geoJsonPath = path.join(process.cwd(), 'public', 'data', 'protected-areas.json');
-                        if (fs.existsSync(geoJsonPath)) {
-                            const fileContent = fs.readFileSync(geoJsonPath, 'utf-8');
-                            protectedAreasGeoJSON = JSON.parse(fileContent);
-                            console.log(`Loaded protected areas from ${geoJsonPath}`);
-                        } else {
-                            console.warn('Protected areas GeoJSON not found');
-                        }
-                    } catch (error) {
-                        console.error('Error loading protected areas:', error);
-                    }
-
-                    function getProtectedArea(lat: number, lon: number): string | undefined {
-                        if (!protectedAreasGeoJSON || !protectedAreasGeoJSON.features) return undefined;
-
-                        const point = turf.point([lon, lat]); // Note: Turf uses [lon, lat]
-
-                        for (const feature of protectedAreasGeoJSON.features) {
-                            if (feature.geometry && turf.booleanPointInPolygon(point, feature)) {
-                                // Return name from properties (try various common keys)
-                                return feature.properties.name || feature.properties.NAME || feature.properties.NAME_TH || 'พื้นที่อนุรักษ์';
-                            }
-                        }
-                        return undefined;
-                    }
-
-                    // ... inside fetchFIRMSHotspots loop ...
                     const hotspot: HotspotData = {
                         id: generateId(raw.latitude, raw.longitude, raw.acq_date + raw.acq_time),
                         latitude: raw.latitude,
