@@ -25,20 +25,50 @@ interface HotspotMapProps {
 
 // Custom fire icon
 const createFireIcon = (hasProtectedArea: boolean, isNight: boolean) => {
-  // Night pass = Purple/Blue flame, Afternoon pass = Orange/Red flame
-  const iconContent = hasProtectedArea
-    ? (isNight ? '🌌' : '🔥') // Specific icon for protected area
-    : (isNight ? '🟣' : '🔶'); // Dot for outside
+  // Use Emoji 🔥
+  // Filter for Night to make it Blue: hue-rotate(220deg) (Orange -> Blue)
+  // Protected areas get a glow effect
+
+  if (!hasProtectedArea) {
+    // Outside Protected Area: Simple Dot
+    const dotColor = isNight ? '#60A5FA' : '#F59E0B'; // Light Blue / Amber
+    return L.divIcon({
+      className: 'fire-marker-dot',
+      html: `<div style="
+        width: 12px;
+        height: 12px;
+        background-color: ${dotColor};
+        border-radius: 50%;
+        box-shadow: 0 0 5px ${dotColor};
+        border: 2px solid white;
+        ${isNight ? 'box-shadow: 0 0 8px #60A5FA;' : ''}
+        animation: pulse 2s infinite;
+      "></div>`,
+      iconSize: [12, 12],
+      iconAnchor: [6, 6],
+      popupAnchor: [0, -6]
+    });
+  }
+
+  // Inside Protected Area: Fire Emoji
+  const filterStyle = isNight
+    ? 'filter: hue-rotate(220deg) saturate(200%) drop-shadow(0 0 4px rgba(59, 130, 246, 0.8));'
+    : 'filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));';
+
+  const protectedStyle = 'text-shadow: 0 0 10px currentColor;';
 
   return L.divIcon({
     html: `<div style="
-      font-size: 24px;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+      font-size: 30px;
+      line-height: 1;
+      text-align: center;
+      ${filterStyle}
+      ${protectedStyle}
       animation: pulse 1.5s ease-in-out infinite;
-    ">${iconContent}</div>`,
+    ">🔥</div>`,
     className: 'fire-marker',
     iconSize: [30, 30],
-    iconAnchor: [15, 15],
+    iconAnchor: [15, 15], // Center
     popupAnchor: [0, -15]
   });
 };
@@ -69,16 +99,15 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
   // Custom Wind Icon
   const createWindIcon = (degree: number, speed: number) => {
     // Rotate 180 because arrow points down by default, but wind comes 'from'
-    // OpenMeteo Wind Direction is "direction form which wind is blowing".
-    // We want arrow to point "to". So add 180.
     const rotation = degree + 180;
+    const windColor = '#14b8a6'; // Teal 500 (Green-ish) to distinguish from Blue Fire
 
     return L.divIcon({
       className: 'wind-marker',
       html: `<div style="
           transform: rotate(${rotation}deg);
           font-size: 24px;
-          color: #0ea5e9;
+          color: ${windColor};
           filter: drop-shadow(0 0 2px rgba(255,255,255,0.8));
           display: flex;
           align-items: center;
@@ -87,7 +116,7 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
         ">
           ⬇
         </div>
-        <div style="font-size: 10px; background: rgba(255,255,255,0.9); padding: 1px 4px; border-radius: 4px; margin-top: -8px; text-align: center; border: 1px solid #0ea5e9; color: #0f172a; font-weight: bold;">
+        <div style="font-size: 10px; background: rgba(255,255,255,0.9); padding: 1px 4px; border-radius: 4px; margin-top: -8px; text-align: center; border: 1px solid ${windColor}; color: #0f172a; font-weight: bold;">
           ${speed}
         </div>`,
       iconSize: [30, 48],
@@ -107,9 +136,6 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
       alert("⚠️ ไม่พบจุดความร้อน (No Hotspots) ไม่สามารถดึงข้อมูลลมได้");
       return;
     }
-
-    // Alert for debugging (User will see this)
-    // alert(`🌪️ กำลังดึงข้อมูลลมสำหรับ ${currentHotspots.length} จุด...`);
 
     // Limit to first 20 to avoid spamming API
     const targets = currentHotspots.slice(0, 20);
@@ -133,7 +159,7 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
           })
             .bindPopup(`
                         <div style="font-family: sans-serif; min-width: 120px;">
-                            <div style="font-weight: bold; color: #0ea5e9; margin-bottom: 4px;">🌪️ ข้อมูลลม</div>
+                            <div style="font-weight: bold; color: #14b8a6; margin-bottom: 4px;">🌪️ ข้อมูลลม</div>
                             ความเร็ว: <strong>${windspeed}</strong> km/h<br/>
                             ทิศทาง: <strong>${winddirection}°</strong>
                         </div>
@@ -149,7 +175,7 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
     if (count === 0) {
       alert("❌ ไม่สามารถดึงข้อมูลลมได้ (API Connection Error)");
     }
-  }, []); // No dependencies, as it uses refs for map, layer, and hotspots
+  }, []); // No dependencies
 
   // 1. Initialize Map (Run Once)
   useEffect(() => {
@@ -269,15 +295,24 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
       const hourStr = hotspot.acq_time.substring(0, 2);
       const hour = parseInt(hourStr);
       const thaiHour = (hour + 7) % 24;
-      const isNight = thaiHour < 12;
+      const isNight = thaiHour < 12; // Assuming night logic (adjust as needed, typically < 6 or > 18)
+      // Note: original code had isNight = thaiHour < 12. Assuming this is effectively "AM = Night" logic for satellite passes?
+      // Usually satellites pass around 1-2AM and 1-2PM. So < 12 is AM (Night/Morning), >= 12 is PM (Afternoon).
+
       const icon = createFireIcon(!!hotspot.protectedArea, isNight);
 
       const marker = L.marker([hotspot.latitude, hotspot.longitude], { icon });
 
+      // Determine label color for popup
+      let labelColor = isNight ? '#2563EB' : '#EA580C';
+
       marker.bindPopup(`
         <div style="min-width: 200px; font-family: system-ui, sans-serif;">
-          <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px; color: ${isNight ? '#7c3aed' : '#ea580c'};">
-            ${isNight ? '🌌 จุดความร้อน (รอบดึก)' : '🔥 จุดความร้อน (รอบบ่าย)'} #${index + 1}
+          <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px; color: ${labelColor}; display: flex; align-items: center; gap: 4px;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" style="width:16px; height:16px;">
+               <path fill-rule="evenodd" d="M12.963 2.286a.75.75 0 00-1.071-.136 9.742 9.742 0 00-3.539 6.177c-.342 1.76.914 3.918 1.455 5.583.567 1.745 1.15 3.091 1.025 4.801a.75.75 0 01-.321.635 5.723 5.723 0 01-4.018 1.052c-.643-.056-1.127-.679-1.002-1.309.288-1.456 1.085-3.208 2.684-5.223a.75.75 0 00-.489-1.22 8.767 8.767 0 00-1.606.071c-1.3.13-2.618.667-3.4 1.834-1.278 1.905-1.574 4.887.804 7.64 2.19 2.535 5.617 3.32 8.528 2.053a.763.763 0 00.178-.097c3.96-2.648 4.606-8.31 1.714-14.775a.75.75 0 00-.54-.484zM12 9c.475 2.155 1.56 4.383 2.82 5.952.22.274.57.304.793.109.13-.114.188-.278.188-.444 0-.164-.092-.358-.233-.509-2.003-2.148-2.67-4.225-2.73-5.292a7.653 7.653 0 013.38 2.404c.261.328.784.25.9-.153.284-.977.106-2.502-.85-4.47L15.93 6.08a.75.75 0 00-.458-.93A10.74 10.74 0 0012.964 2.286z" clip-rule="evenodd" />
+            </svg>
+            ${isNight ? 'จุดความร้อน (รอบดึก)' : 'จุดความร้อน (รอบบ่าย)'} #${index + 1}
           </div>
           <div style="font-size: 12px; color: #374151; line-height: 1.6;">
             ${hotspot.protectedArea ? `
@@ -306,13 +341,6 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
 
       layer.addLayer(marker);
     });
-
-    // Optional: fitBounds logic
-    // If you want to fit bounds on every hotspot update, uncomment and adjust:
-    // if (hotspots.length > 0) {
-    //   const bounds = L.latLngBounds(hotspots.map(h => [h.latitude, h.longitude]));
-    //   map.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
-    // }
   }, [hotspots]);
 
 
@@ -328,17 +356,25 @@ export default function HotspotMap({ hotspots, center, zoom = 9 }: HotspotMapPro
       <div className="absolute bottom-4 left-4 bg-slate-900/90 backdrop-blur-sm rounded-lg p-3 text-sm border border-slate-700/50 z-[1000]">
         <div className="font-medium text-white mb-2">สัญลักษณ์</div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+          {/* Day / Protected */}
           <div className="flex items-center gap-2 text-slate-300">
-            <span>🔥</span> <span>บ่าย (ป่าอนุรักษ์)</span>
+            <span style={{ fontSize: '20px' }}>🔥</span>
+            <span>บ่าย (ป่าอนุรักษ์)</span>
           </div>
+          {/* Day / Outside */}
           <div className="flex items-center gap-2 text-slate-300">
-            <span>🔶</span> <span>บ่าย (นอกพื้นที่)</span>
+            <div className="w-3 h-3 rounded-full bg-amber-500 border border-white shadow-[0_0_5px_rgba(245,158,11,0.5)]"></div>
+            <span>บ่าย (นอกพื้นที่)</span>
           </div>
+          {/* Night / Protected */}
           <div className="flex items-center gap-2 text-slate-300">
-            <span>🌌</span> <span>ดึก (ป่าอนุรักษ์)</span>
+            <span style={{ fontSize: '20px', filter: 'hue-rotate(220deg) saturate(200%)' }}>🔥</span>
+            <span>ดึก (ป่าอนุรักษ์)</span>
           </div>
+          {/* Night / Outside */}
           <div className="flex items-center gap-2 text-slate-300">
-            <span>🟣</span> <span>ดึก (นอกพื้นที่)</span>
+            <div className="w-3 h-3 rounded-full bg-blue-400 border border-white shadow-[0_0_8px_rgba(96,165,250,0.8)]"></div>
+            <span>ดึก (นอกพื้นที่)</span>
           </div>
         </div>
       </div>
