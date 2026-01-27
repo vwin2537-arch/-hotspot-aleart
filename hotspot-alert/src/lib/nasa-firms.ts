@@ -179,7 +179,7 @@ export async function fetchFIRMSHotspots(days: number = 1): Promise<HotspotData[
             for (const raw of rawHotspots) {
                 if (!isInKanchanaburi(raw.latitude, raw.longitude)) continue;
 
-                // [FIXED] Robust Thai Date Comparison
+                // Parse UTC datetime from FIRMS data
                 const year = parseInt(raw.acq_date.substring(0, 4));
                 const month = parseInt(raw.acq_date.substring(5, 7)) - 1;
                 const day = parseInt(raw.acq_date.substring(8, 10));
@@ -189,16 +189,29 @@ export async function fetchFIRMSHotspots(days: number = 1): Promise<HotspotData[
                 // UTC Date of the hotspot
                 const hotspotDateUTC = new Date(Date.UTC(year, month, day, hour, minute));
 
-                // Get Thai Date String (YYYY-MM-DD) for Hotspot
+                // Convert to Thai Time for filtering
                 const hotspotThaiDateStr = hotspotDateUTC.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+                const hotspotThaiHour = parseInt(hotspotDateUTC.toLocaleString('en-US', { timeZone: 'Asia/Bangkok', hour: '2-digit', hour12: false }));
 
-                // Get Current Thai Date String (YYYY-MM-DD)
+                // Current Thai Date
                 const currentThaiDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
 
-                // If not today (Thai time), skip
-                // Log for debug
-                // console.log(`Hotspot: ${hotspotThaiDateStr} vs Now: ${currentThaiDateStr}`);
-                if (hotspotThaiDateStr !== currentThaiDateStr) continue;
+                // ===== PASS-BASED FILTERING =====
+                // Only include hotspots from today's two pass windows:
+                //   - Night Pass: 01:00-03:00 Thai Time (Thai Hour 1, 2)
+                //   - Afternoon Pass: 13:00-16:00 Thai Time (Thai Hour 13, 14, 15)
+
+                const isNightPass = hotspotThaiHour >= 1 && hotspotThaiHour < 3;
+                const isAfternoonPass = hotspotThaiHour >= 13 && hotspotThaiHour < 16;
+                const isValidPassTime = isNightPass || isAfternoonPass;
+
+                const isTodayThaiDate = hotspotThaiDateStr === currentThaiDateStr;
+
+                // Debug Log
+                console.log(`[FILTER] ${raw.acq_date} ${raw.acq_time} UTC => Thai: ${hotspotThaiDateStr} ${hotspotThaiHour}:00 | Today: ${isTodayThaiDate} | ValidPass: ${isValidPassTime} (Night:${isNightPass}, Afternoon:${isAfternoonPass})`);
+
+                // Skip if NOT today OR NOT in valid pass window
+                if (!isTodayThaiDate || !isValidPassTime) continue;
 
                 const district = getDistrict(raw.latitude, raw.longitude);
 
