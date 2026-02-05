@@ -8,6 +8,11 @@ import { HotspotData, HotspotAlert } from '@/types/hotspot';
  * ส่งข้อความไปยัง LINE Group
  */
 async function sendLineMessage(messages: object[]): Promise<boolean> {
+    if (!CONFIG.ENABLE_LINE_BOT) {
+        console.log('LINE bot is currently disabled (ENABLE_LINE_BOT: false)');
+        return false;
+    }
+
     if (!CONFIG.LINE_CHANNEL_ACCESS_TOKEN || !CONFIG.LINE_GROUP_ID) {
         console.error('LINE credentials not configured');
         return false;

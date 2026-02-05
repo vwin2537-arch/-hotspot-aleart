@@ -11,6 +11,7 @@ export const CONFIG = {
     GISTDA_API_URL: 'https://api.sphere.gistda.or.th/services/info/disaster-hotspot',
 
     // LINE Messaging API
+    ENABLE_LINE_BOT: false, // ปิดระบบ LINE bot ตามคำขอ
     LINE_CHANNEL_ACCESS_TOKEN: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
     LINE_GROUP_ID: process.env.LINE_GROUP_ID || '',
     LINE_API_URL: 'https://api.line.me/v2/bot/message/push',
